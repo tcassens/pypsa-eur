@@ -63,6 +63,8 @@ def build_nodal_industrial_energy_demand():
     for country, sector in product(countries, sectors):
         buses = keys.index[keys.country == country]
         mapping = sector_mapping.get(sector, "population")
+        if mapping not in keys.columns:
+            mapping = "population"
 
         key = keys.loc[buses, mapping]
         demand = industrial_demand[country, sector]
