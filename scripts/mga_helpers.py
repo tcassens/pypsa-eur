@@ -63,6 +63,36 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     )
 
 
+def apply_mga_extra_functionality(n, snapshots, config, custom_extra_functionality, planning_horizons):
+    """
+    Run PyPSA-Eur's real extra_functionality() (CO2 budget, battery/TES ratios,
+    solar potential, etc.) for one MGA direction.
+
+    Used as the `extra_functionality` callback for
+    `n.optimize.optimize_mga_in_multiple_directions`. Each direction is solved
+    in a freshly reloaded Network in a spawned worker process, so `n.config`/
+    `n.params`are never set there; this attaches them first.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The (per-worker) network being solved for this direction.
+    snapshots : pd.DatetimeIndex
+    config : dict
+        Full snakemake.config, as passed to solve_second_network.solve_network.
+    custom_extra_functionality : str | list
+        snakemake.params.custom_extra_functionality (a path, or [] if unset).
+    planning_horizons : str | None
+    """
+    from types import SimpleNamespace
+
+    from solve_second_network import extra_functionality
+
+    n.config = config
+    n.params = SimpleNamespace(custom_extra_functionality=custom_extra_functionality)
+    extra_functionality(n, snapshots, planning_horizons=planning_horizons)
+
+
 def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash, wildcards=None, slack=None, check_only=False):
     """
     Export or check all per-direction MGA solution outputs.

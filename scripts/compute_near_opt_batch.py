@@ -29,7 +29,7 @@ from compute_near_opt import (
     fill_dimension_weights,
     load_dimensions_from_config,
 )
-from mga_helpers import export_mga_capacities, export_mga_information
+from mga_helpers import apply_mga_extra_functionality, export_mga_capacities, export_mga_information
 from solve_second_network import fix_networks
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,8 @@ if __name__ == "__main__":
     # Fix network to prevent transmission expansion
     logger.info("Fixing network capacities")
     fix_networks(m, n)
+
+    planning_horizons = snakemake.wildcards.get("planning_horizons", None)
 
     # Load near-opt configuration
     mga_config = snakemake.config.get("near-opt", {})
@@ -106,11 +108,6 @@ if __name__ == "__main__":
     cache_dir = mga_config.get("cache_dir", None)
 
     logger.info(f"Using solver: {solver_name}, cache_dir: {cache_dir}")
-    # Set co2 atmosphere store to cyclic
-    if m.stores[m.stores['bus'] == 'co2 atmosphere'].e_cyclic.item() == False:
-        idx = m.stores.index[m.stores["bus"].eq("co2 atmosphere")]
-        m.stores.loc[idx, "e_cyclic"] = True
-    logger.info("Set 'co2 atmosphere' store to cyclic")
 
     # Run near-opt optimisation for this batch
     successful_directions, successful_coordinates = (
@@ -119,6 +116,12 @@ if __name__ == "__main__":
             dimensions=dimensions,
             cache_dir=cache_dir,
             mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config),
+            extra_functionality=partial(
+                apply_mga_extra_functionality,
+                config=snakemake.config,
+                custom_extra_functionality=snakemake.params.custom_extra_functionality,
+                planning_horizons=planning_horizons,
+            ),
             snapshots=None,
             multi_investment_periods=False,
             slack=slack,

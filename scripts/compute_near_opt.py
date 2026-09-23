@@ -21,7 +21,7 @@ from _helpers import (
     set_scenario_config,
     update_config_from_wildcards,
 )
-from mga_helpers import export_mga_capacities, export_mga_information
+from mga_helpers import apply_mga_extra_functionality, export_mga_capacities, export_mga_information
 from solve_second_network import fix_networks
 from pypsa.optimization.mga import hash_direction, hash_mga
 
@@ -265,6 +265,8 @@ if __name__ == "__main__":
     logger.info("Fixing network capacities")
     fix_networks(m, n)
 
+    planning_horizons = snakemake.wildcards.get("planning_horizons", None)
+
     # Load MGA configuration
     mga_config = snakemake.config.get("near-opt", {})
     if not mga_config:
@@ -346,6 +348,12 @@ if __name__ == "__main__":
         dimensions=dimensions,
         cache_dir=cache_dir,
         mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config),
+        extra_functionality=partial(
+            apply_mga_extra_functionality,
+            config=snakemake.config,
+            custom_extra_functionality=snakemake.params.custom_extra_functionality,
+            planning_horizons=planning_horizons,
+        ),
         snapshots=None,
         multi_investment_periods=False,
         slack=slack,
