@@ -8,7 +8,10 @@ import yaml
 
 # Prefer parallel aggregation over monolithic compute when both could produce the output
 ruleorder: aggregate_near_opt > compute_near_opt
-ruleorder: validation_mga > test_operations
+
+# test_operations only exists for overnight foresight
+if config["foresight"] == "overnight":
+    ruleorder: validation_mga > test_operations
 
 with open(config["run"]["stress_tests"]["design_years"]) as f:
     DESIGN_YEARS = list(yaml.safe_load(f).keys())
