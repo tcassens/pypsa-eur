@@ -18,6 +18,7 @@ Sections
 """
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -73,6 +74,8 @@ def extract_carrier(name: str, carrier_lookup: dict) -> str | None:
     -------
     Matched carrier string, or None if no match.
     """
+    # strip a myopic per-horizon vintage-year suffix (e.g. "-2040")
+    name = re.sub(r"-\d{4}$", "", name)
     for carrier in sorted(carrier_lookup, key=len, reverse=True):
         if name.endswith(carrier):
             return carrier
