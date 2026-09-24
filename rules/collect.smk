@@ -221,6 +221,21 @@ rule collect_resilience_analysis:
         ] if config.get("near-opt", {}).get("enable", False) else [],
 
 
+rule collect_optimal_pathway_mga:
+    """Collect cost-optimal summaries and MGA candidates for the myopic pathway, per design year and horizon (no stress-test/validation outputs)."""
+    input:
+        lambda w: [
+            f"results/{config['run']['prefix']}/{design_year}/resilience/{filename}"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
+            for filename in [
+                f"cost_opt_summary_{scenario}.json",
+                f"cost_opt_caps_{scenario}.csv",
+                f"mga_candidates_{scenario}.csv",
+            ]
+        ] if config.get("near-opt", {}).get("enable", False) else [],
+
+
 def balance_map_paths(kind, w):
     """
     kind = "static" or "interactive"
