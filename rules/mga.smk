@@ -470,3 +470,142 @@ rule analyse_mga_candidates:
         "../envs/environment.yaml"
     script:
         "../scripts/analyse_mga_candidates.py"
+
+
+# ========== Pathways: o (cost-optimum) / c (Chebyshev centre) ==========
+# A pathway network is named by its steps, one per horizon, appended to the file name,
+# e.g. base_s_2___2040_c2030-o2040.nc = centre 2030 -> cost-opt 2040.
+# ...-oY is brownfield on the previous step, ...-cY is ...-oY re-solved at the Chebyshev
+# centre of its MGA. All-o pathways are the existing cost-opt networks (no suffix).
+# =========================================================
+
+PATHWAY_C = r"([oc]\d{4}-)*c\d{4}"  # ends in a c step
+PATHWAY_O = r"([oc]\d{4}-)*c\d{4}(-[oc]\d{4})*-o\d{4}"  # contains a c step, ends in an o step
+
+
+def _get_pathway_parent(wildcards):
+    """File suffix and horizon of the parent: ...-cY -> ...-oY (same horizon), ...-oY -> ... (previous horizon)."""
+    planning_horizons = [str(h) for h in config["scenario"]["planning_horizons"]]
+    steps = wildcards.pathway.split("-")
+    if [s[1:] for s in steps] != planning_horizons[: len(steps)] or steps[-1][1:] != wildcards.planning_horizons:
+        raise ValueError(f"Pathway '{wildcards.pathway}' does not match horizons {planning_horizons}")
+    parent = steps[:-1] + ["o" + steps[-1][1:]] if steps[-1].startswith("c") else steps[:-1]
+    suffix = "_" + "-".join(parent) if any(s.startswith("c") for s in parent) else ""  # all-o = cost-opt network
+    return suffix, parent[-1][1:]
+
+
+def _get_parent_network(wildcards):
+    """Solved network of the parent of a pathway network."""
+    suffix, planning_horizons = _get_pathway_parent(wildcards)
+    return expand(
+        RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{suffix}.nc",
+        suffix=suffix,
+        run=wildcards.run,
+        clusters=wildcards.clusters,
+        opts=wildcards.opts,
+        sector_opts=wildcards.sector_opts,
+        planning_horizons=planning_horizons,
+    )[0]
+
+
+def _get_parent_near_opt(wildcards):
+    """MGA results (near-opt CSV and network hash) of the parent o network of a c pathway."""
+    suffix, planning_horizons = _get_pathway_parent(wildcards)
+    near_opt = expand(
+        RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{suffix}",
+        suffix=suffix,
+        run=wildcards.run,
+        clusters=wildcards.clusters,
+        opts=wildcards.opts,
+        sector_opts=wildcards.sector_opts,
+        planning_horizons=planning_horizons,
+    )[0]
+    return {"near_opt": near_opt + ".csv", "network_hash": near_opt + "_network_hash.txt"}
+
+
+rule compute_chebyshev_centre:
+    """Chebyshev centre of the MGA on the parent o network of a c pathway."""
+    wildcard_constraints:
+        pathway=PATHWAY_C,
+    message:
+        "Computing Chebyshev centre for pathway {wildcards.pathway} ({wildcards.run})"
+    input:
+        unpack(_get_parent_near_opt),
+    output:
+        centre=RESULTS + "near_opt/chebyshev_centre_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.json",
+    log:
+        python=RESULTS + "logs/mga/compute_chebyshev_centre/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_python.log",
+    benchmark:
+        RESULTS + "benchmarks/mga/compute_chebyshev_centre/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}"
+    localrule: True
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/compute_chebyshev_centre.py"
+
+
+rule solve_chebyshev_network:
+    """Re-solve the parent o network with the MGA dimensions pinned to the Chebyshev centre."""
+    wildcard_constraints:
+        pathway=PATHWAY_C,
+    params:
+        solving=config_provider("solving"),
+        custom_extra_functionality=input_custom_extra_functionality,
+    message:
+        "Solving Chebyshev-centre network for pathway {wildcards.pathway} ({wildcards.run})"
+    input:
+        network=_get_parent_network,
+        centre=RESULTS + "near_opt/chebyshev_centre_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.json",
+    output:
+        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.nc",
+        config=RESULTS + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.yaml",
+        summary=RESULTS + "near_opt/chebyshev_centre_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_summary.json",
+    log:
+        solver=RESULTS + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_solver.log",
+        memory=RESULTS + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_memory.log",
+        python=RESULTS + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_python.log",
+    benchmark:
+        RESULTS + "benchmarks/solve_chebyshev_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}"
+    threads: solver_threads
+    resources:
+        mem_mb=config_provider("solving", "mem_mb"),
+        runtime=config_provider("solving", "runtime", default="6h"),
+    shadow:
+        shadow_config
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/solve_chebyshev_network.py"
+
+
+# add_brownfield / solve_sector_network_myopic only exist for myopic foresight
+if config["foresight"] == "myopic":
+
+    use rule add_brownfield as add_brownfield_pathway with:
+        wildcard_constraints:
+            pathway=PATHWAY_O,
+        input:
+            unpack(input_profile_tech_brownfield),
+            network=resources("networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"),
+            network_p=_get_parent_network,
+        output:
+            resources("networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_brownfield.nc"),
+        log:
+            logs("add_brownfield_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.log"),
+        benchmark:
+            benchmarks("add_brownfield/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}")
+
+    use rule solve_sector_network_myopic as solve_sector_network_myopic_pathway with:
+        wildcard_constraints:
+            pathway=PATHWAY_O,
+        input:
+            network=resources("networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_brownfield.nc"),
+        output:
+            network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.nc",
+            config=RESULTS + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.yaml",
+        log:
+            solver=RESULTS + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_solver.log",
+            memory=RESULTS + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_memory.log",
+            python=RESULTS + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_python.log",
+        benchmark:
+            RESULTS + "benchmarks/solve_sector_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}"

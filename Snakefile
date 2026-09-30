@@ -74,7 +74,6 @@ include: "rules/build_sector.smk"
 include: "rules/solve_electricity.smk"
 include: "rules/postprocess.smk"
 include: "rules/development.smk"
-include: "rules/mga.smk"
 
 
 if config["foresight"] == "overnight":
@@ -90,6 +89,9 @@ if config["foresight"] == "myopic":
 if config["foresight"] == "perfect":
 
     include: "rules/solve_perfect.smk"
+
+
+include: "rules/mga.smk"
 
 
 rule all:

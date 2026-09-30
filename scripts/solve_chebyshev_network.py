@@ -92,7 +92,7 @@ if __name__ == "__main__":
             clusters="2",
             sector_opts="",
             planning_horizons="2030",
-            node="00000000",
+            pathway="c2030",
             configfiles="config/pathway_mga/mini_myopic_dk.yaml",
         )
 
@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     summary = {
         "planning_horizons": planning_horizons,
-        "node": snakemake.wildcards.get("node", None),
+        "pathway": snakemake.wildcards.get("pathway", None),
         "network_hash": centre_info["network_hash"],  # MGA the centre came from
         "status": status,
         "condition": condition,
