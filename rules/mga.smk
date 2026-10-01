@@ -19,6 +19,10 @@ with open(config["run"]["stress_tests"]["design_years"]) as f:
 with open(config["run"]["stress_tests"]["stress_years"]) as f:
     STRESS_YEARS = list(yaml.safe_load(f).keys())
 
+# Pathways (see the pathway section at the end of this file)
+PATHWAY_C = r"([oc]\d{4}-)*c\d{4}"  # ends in a c step
+PATHWAY_O = r"([oc]\d{4}-)*c\d{4}(-[oc]\d{4})*-o\d{4}"  # contains a c step, ends in an o step
+PATHWAY_SUFFIX = r"(_" + PATHWAY_O + ")?"  # MGA on "" = cost-opt network, "_c2030-o2040" = o pathway network
 
 
 
@@ -154,6 +158,8 @@ rule collect_mga_validation:
 
 checkpoint generate_near_opt_directions:
     """Generate all near-opt directions as individual JSON files + manifest."""
+    wildcard_constraints:
+        pathway_suffix=PATHWAY_SUFFIX,
     params:
         solving=config_provider("solving"),
         foresight=config_provider("foresight"),
@@ -169,17 +175,17 @@ checkpoint generate_near_opt_directions:
         "Generating near-optimal direction files for {wildcards.run} "
         "({params.total_directions} directions, slack={params.slack})"
     input:
-        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}.nc",
         reference=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",  # cost-opt network, C* of the budget
     output:
         directions_dir=directory(
-            RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/"
+            RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}/"
         ),
-        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_manifest.json",
+        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_manifest.json",
     log:
-        python=RESULTS + "logs/mga/generate_near_opt_directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+        python=RESULTS + "logs/mga/generate_near_opt_directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_python.log",
     benchmark:
-        RESULTS + "benchmarks/mga/generate_near_opt_directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+        RESULTS + "benchmarks/mga/generate_near_opt_directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}"
     conda:
         "../envs/environment.yaml"
     script:
@@ -207,13 +213,14 @@ def _get_batch_direction_files(wildcards):
     batches = _get_near_opt_batches(wildcards)
     batch_dirs = batches[wildcards.batch_hash]
     return expand(
-        RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/{dir_hash}.json",
+        RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}/{dir_hash}.json",
         dir_hash=batch_dirs,
         run=wildcards.run,
         clusters=wildcards.clusters,
         opts=wildcards.opts,
         sector_opts=wildcards.sector_opts,
         planning_horizons=wildcards.planning_horizons,
+        pathway_suffix=wildcards.pathway_suffix,
     )
 
 
@@ -221,13 +228,14 @@ def _get_all_batch_results(wildcards):
     """Get all batch result files (triggers checkpoint resolution)."""
     batches = _get_near_opt_batches(wildcards)
     return expand(
-        RESULTS + "near_opt/batches/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/batch_{batch_hash}.csv",
+        RESULTS + "near_opt/batches/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}/batch_{batch_hash}.csv",
         batch_hash=list(batches.keys()),
         run=wildcards.run,
         clusters=wildcards.clusters,
         opts=wildcards.opts,
         sector_opts=wildcards.sector_opts,
         planning_horizons=wildcards.planning_horizons,
+        pathway_suffix=wildcards.pathway_suffix,
     )
 
 
@@ -235,6 +243,7 @@ rule compute_near_opt_batch:
     """Solve one batch of near-opt directions on one SLURM node."""
     wildcard_constraints:
         batch_hash=r"[a-f0-9]{8}",
+        pathway_suffix=PATHWAY_SUFFIX,
     params:
         solving=config_provider("solving"),
         foresight=config_provider("foresight"),
@@ -248,15 +257,15 @@ rule compute_near_opt_batch:
         "Solving near-optimal batch {wildcards.batch_hash} for {wildcards.run} "
         "({params.max_parallel} directions, slack={params.slack})"
     input:
-        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}.nc",
         direction_files=_get_batch_direction_files,
-        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_manifest.json",  # remaining slack
+        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_manifest.json",  # remaining slack
     output:
-        batch_result=temp(RESULTS + "near_opt/batches/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/batch_{batch_hash}.csv"),
+        batch_result=temp(RESULTS + "near_opt/batches/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}/batch_{batch_hash}.csv"),
     log:
-        python=RESULTS + "logs/mga/compute_near_opt_batch/batch_{batch_hash}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+        python=RESULTS + "logs/mga/compute_near_opt_batch/batch_{batch_hash}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_python.log",
     benchmark:
-        RESULTS + "benchmarks/mga/compute_near_opt_batch/batch_{batch_hash}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+        RESULTS + "benchmarks/mga/compute_near_opt_batch/batch_{batch_hash}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}"
     threads: lambda wildcards: config_provider("near-opt", "approx", "max_parallel")(wildcards)
     resources:
         mem_mb=memory,
@@ -281,6 +290,8 @@ checkpoint aggregate_near_opt:
     missing (e.g. because a batch solve failed silently), this rule fails early with
     a clear error rather than letting the pipeline proceed with missing cache files.
     """
+    wildcard_constraints:
+        pathway_suffix=PATHWAY_SUFFIX,
     params:
         solving=config_provider("solving"),
         cache_dir=config_provider("near-opt", "cache_dir"),
@@ -288,14 +299,14 @@ checkpoint aggregate_near_opt:
         "Aggregating near-optimal batch results for {wildcards.run}"
     input:
         batch_results=_get_all_batch_results,
-        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_manifest.json",
+        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_manifest.json",
     output:
-        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
-        network_hash=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_network_hash.txt",
+        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}.csv",
+        network_hash=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_network_hash.txt",
     log:
-        python=RESULTS + "logs/mga/aggregate_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+        python=RESULTS + "logs/mga/aggregate_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_python.log",
     benchmark:
-        RESULTS + "benchmarks/mga/aggregate_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+        RESULTS + "benchmarks/mga/aggregate_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}"
     run:
         from pathlib import Path
 
@@ -367,7 +378,7 @@ def _get_mga_info_files(wildcards):
     the stale-state fragility of the previous os.path.exists approach.
     """
     import pandas as pd
-    cp_out = checkpoints.aggregate_near_opt.get(**wildcards).output
+    cp_out = checkpoints.aggregate_near_opt.get(pathway_suffix="", **wildcards).output  # cost-opt MGA
     network_hash = open(cp_out.network_hash).read().strip()
     near_opt = pd.read_csv(cp_out.near_opt_solutions)
     direction_hashes = near_opt["dir_hash"].unique().tolist() if "dir_hash" in near_opt.columns else []
@@ -381,7 +392,7 @@ def _get_mga_validation_load_shedding(wildcards):
     Gated on the aggregate_near_opt checkpoint (same rationale as _get_mga_info_files).
     """
     import pandas as pd
-    cp_out = checkpoints.aggregate_near_opt.get(**wildcards).output
+    cp_out = checkpoints.aggregate_near_opt.get(pathway_suffix="", **wildcards).output  # cost-opt MGA
     network_hash = open(cp_out.network_hash).read().strip()
     near_opt = pd.read_csv(cp_out.near_opt_solutions)
     direction_hashes = near_opt["dir_hash"].unique().tolist() if "dir_hash" in near_opt.columns else []
@@ -481,27 +492,23 @@ rule analyse_mga_candidates:
 # centre of its MGA. All-o pathways are the existing cost-opt networks (no suffix).
 # =========================================================
 
-PATHWAY_C = r"([oc]\d{4}-)*c\d{4}"  # ends in a c step
-PATHWAY_O = r"([oc]\d{4}-)*c\d{4}(-[oc]\d{4})*-o\d{4}"  # contains a c step, ends in an o step
-
-
 def _get_pathway_parent(wildcards):
-    """File suffix and horizon of the parent: ...-cY -> ...-oY (same horizon), ...-oY -> ... (previous horizon)."""
+    """Pathway suffix and horizon of the parent: ...-cY -> ...-oY (same horizon), ...-oY -> ... (previous horizon)."""
     planning_horizons = [str(h) for h in config["scenario"]["planning_horizons"]]
     steps = wildcards.pathway.split("-")
     if [s[1:] for s in steps] != planning_horizons[: len(steps)] or steps[-1][1:] != wildcards.planning_horizons:
         raise ValueError(f"Pathway '{wildcards.pathway}' does not match horizons {planning_horizons}")
     parent = steps[:-1] + ["o" + steps[-1][1:]] if steps[-1].startswith("c") else steps[:-1]
-    suffix = "_" + "-".join(parent) if any(s.startswith("c") for s in parent) else ""  # all-o = cost-opt network
-    return suffix, parent[-1][1:]
+    pathway_suffix = "_" + "-".join(parent) if any(s.startswith("c") for s in parent) else ""  # all-o = cost-opt network
+    return pathway_suffix, parent[-1][1:]
 
 
 def _get_parent_network(wildcards):
     """Solved network of the parent of a pathway network."""
-    suffix, planning_horizons = _get_pathway_parent(wildcards)
+    pathway_suffix, planning_horizons = _get_pathway_parent(wildcards)
     return expand(
-        RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{suffix}.nc",
-        suffix=suffix,
+        RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}.nc",
+        pathway_suffix=pathway_suffix,
         run=wildcards.run,
         clusters=wildcards.clusters,
         opts=wildcards.opts,
@@ -512,10 +519,10 @@ def _get_parent_network(wildcards):
 
 def _get_parent_near_opt(wildcards):
     """MGA results (near-opt CSV and network hash) of the parent o network of a c pathway."""
-    suffix, planning_horizons = _get_pathway_parent(wildcards)
+    pathway_suffix, planning_horizons = _get_pathway_parent(wildcards)
     near_opt = expand(
-        RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{suffix}",
-        suffix=suffix,
+        RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}",
+        pathway_suffix=pathway_suffix,
         run=wildcards.run,
         clusters=wildcards.clusters,
         opts=wildcards.opts,
@@ -523,6 +530,20 @@ def _get_parent_near_opt(wildcards):
         planning_horizons=planning_horizons,
     )[0]
     return {"near_opt": near_opt + ".csv", "network_hash": near_opt + "_network_hash.txt"}
+
+
+def _get_parent_manifest(wildcards):
+    """MGA manifest of the parent o network of a c pathway (remaining slack, gives C* of the budget)."""
+    pathway_suffix, planning_horizons = _get_pathway_parent(wildcards)
+    return expand(
+        RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}{pathway_suffix}_manifest.json",
+        pathway_suffix=pathway_suffix,
+        run=wildcards.run,
+        clusters=wildcards.clusters,
+        opts=wildcards.opts,
+        sector_opts=wildcards.sector_opts,
+        planning_horizons=planning_horizons,
+    )[0]
 
 
 rule compute_chebyshev_centre:
@@ -558,6 +579,7 @@ rule solve_chebyshev_network:
     input:
         network=_get_parent_network,
         centre=RESULTS + "near_opt/chebyshev_centre_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.json",
+        manifest=_get_parent_manifest,  # remaining slack of the parent MGA -> C* of the budget
     output:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.nc",
         config=RESULTS + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}.yaml",

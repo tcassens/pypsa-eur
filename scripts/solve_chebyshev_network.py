@@ -30,7 +30,7 @@ from _helpers import (
     update_config_from_wildcards,
 )
 from compute_near_opt import fill_dimension_weights, load_dimensions_from_config
-from mga_helpers import apply_mga_extra_functionality
+from mga_helpers import apply_mga_extra_functionality, total_cost
 from solve_second_network import fix_networks
 
 logger = logging.getLogger(__name__)
@@ -137,8 +137,12 @@ if __name__ == "__main__":
         )
     logger.info(f"Pinning dimensions {list(dimensions)} to the Chebyshev centre")
 
-    # C* as in _add_near_opt_constraint
-    optimal_cost = float(n.statistics.capex().sum() + n.statistics.opex().sum())
+    # C* of the MGA budget: the cost-opt network of this horizon. The parent MGA used the
+    # remaining slack s' with (1 + s') * C(parent) = (1 + s) * C*, so no extra network is loaded
+    with open(snakemake.input.manifest) as f:
+        parent_slack = json.load(f).get("slack", slack)  # older manifests: parent is cost-opt, s' = s
+    optimal_cost = (1 + parent_slack) * total_cost(n) / (1 + slack)
+    logger.info(f"Parent MGA slack {parent_slack:.4f}: C* {optimal_cost:.6g}")
 
     solving = snakemake.config["solving"]
     solver_name = solving["solver"]["name"]
@@ -203,7 +207,7 @@ if __name__ == "__main__":
         "nom_total": dimension_nom_totals(m, dimensions),  # MW / MWh, information
         "radius": centre_info["radius"],
         "cost": cost,  # objective + fixed cost, as in the budget constraint
-        "optimal_cost": optimal_cost,  # C* of the parent network
+        "optimal_cost": optimal_cost,  # C* of the cost-opt network of this horizon
         "slack": slack,
         "budget": budget,  # (1 + slack) * C*
         "cost_above_optimal": cost / optimal_cost - 1,
