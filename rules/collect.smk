@@ -236,6 +236,30 @@ rule collect_optimal_pathway_mga:
         ] if config.get("near-opt", {}).get("enable", False) else [],
 
 
+def pathway_names(horizons):
+    """All full-length o/c pathways with at least one c step (all-o = cost-opt pathway), e.g. o2030-c2040."""
+    from itertools import product
+    return [
+        "-".join(s + str(h) for s, h in zip(steps, horizons))
+        for steps in product("oc", repeat=len(horizons))
+        if "c" in steps
+    ]
+
+
+rule collect_pathways:
+    """Collect the networks of all o/c pathways at the last horizon (shorter pathways and centre JSONs come along as their inputs)."""
+    input:
+        lambda w: [
+            f"results/{config['run']['prefix']}/{design_year}/networks/{scenario}_{pathway}.nc"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for scenario in expand(
+                "base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}",
+                **{**config["scenario"], "planning_horizons": config["scenario"]["planning_horizons"][-1]},
+            )
+            for pathway in pathway_names(config["scenario"]["planning_horizons"])
+        ] if config.get("near-opt", {}).get("pathway", {}).get("enable", False) else [],
+
+
 def balance_map_paths(kind, w):
     """
     kind = "static" or "interactive"
