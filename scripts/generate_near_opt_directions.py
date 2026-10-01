@@ -23,6 +23,7 @@ from _helpers import (
     update_config_from_wildcards,
 )
 from solve_second_network import fix_networks
+from mga_helpers import remaining_slack
 from pypsa.optimization.mga import hash_direction, hash_mga
 
 # Import direction generation functions from compute_near_opt
@@ -79,6 +80,9 @@ if __name__ == "__main__":
             raise ValueError("Network objective is zero.")
         slack = float(absolute_slack) / objective_value
         logger.info(f"Using absolute slack: {absolute_slack} (relative: {slack:.4f})")
+
+    # Budget relative to the cost-opt network of this horizon (unchanged for cost-opt networks)
+    slack = remaining_slack(n, slack, snakemake.input.network, snakemake.input.reference)
 
     # Load and fill dimensions
     logger.info("Loading projection dimensions from config")
@@ -155,6 +159,7 @@ if __name__ == "__main__":
     # Save manifest
     manifest = {
         "network_hash": network_hash,
+        "slack": slack,  # relative to this network, read by compute_near_opt_batch
         "directions": direction_hashes,
         "total": len(direction_hashes),
         "dimensions": dimension_names,

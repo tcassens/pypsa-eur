@@ -93,6 +93,48 @@ def apply_mga_extra_functionality(n, snapshots, config, custom_extra_functionali
     extra_functionality(n, snapshots, planning_horizons=planning_horizons)
 
 
+def total_cost(n):
+    """Total system cost (capex + opex), the C* definition of the MGA budget constraint."""
+    return float(n.statistics.capex().sum() + n.statistics.opex().sum())
+
+
+def remaining_slack(n, slack, network_path, reference_path):
+    """
+    Relative slack for an MGA on n such that its budget is (1 + slack) * C* of
+    the cost-opt network of the same horizon (reference_path), not of n itself.
+
+    PyPSA builds the budget as `cost <= (1 + slack) * C*(n)`, so the slack is
+    rescaled: s' = (1 + slack) * C*_ref / C*(n) - 1.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        Solved network the MGA runs on (e.g. a pathway network c2030-o2040).
+    slack : float
+        Relative slack w.r.t. the cost-opt network (near-opt.slack.value).
+    network_path, reference_path : str
+        Paths of n and of the cost-opt network of the same horizon.
+    """
+    if network_path == reference_path:  # cost-opt network: unchanged, keeps existing network hashes
+        return slack
+
+    import pypsa
+
+    cost = total_cost(n)
+    optimal_cost = total_cost(pypsa.Network(reference_path))
+    remaining = (1 + slack) * optimal_cost / cost - 1
+    logger.info(
+        f"Cost {cost:.6g} vs cost-opt C* {optimal_cost:.6g} ({cost / optimal_cost - 1:+.2%}): "
+        f"remaining slack {remaining:.4f} (budget {(1 + slack) * optimal_cost:.6g})"
+    )
+    if remaining <= 0:
+        raise ValueError(
+            f"No near-optimal space left: {network_path} costs {cost / optimal_cost - 1:.2%} "
+            f"above the cost-opt C* ({reference_path}), more than the slack {slack}."
+        )
+    return float(remaining)
+
+
 def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash, wildcards=None, slack=None, check_only=False):
     """
     Export or check all per-direction MGA solution outputs.

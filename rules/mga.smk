@@ -170,6 +170,7 @@ checkpoint generate_near_opt_directions:
         "({params.total_directions} directions, slack={params.slack})"
     input:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+        reference=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",  # cost-opt network, C* of the budget
     output:
         directions_dir=directory(
             RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/"
@@ -249,6 +250,7 @@ rule compute_near_opt_batch:
     input:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
         direction_files=_get_batch_direction_files,
+        manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_manifest.json",  # remaining slack
     output:
         batch_result=temp(RESULTS + "near_opt/batches/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/batch_{batch_hash}.csv"),
     log:
