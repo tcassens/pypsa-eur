@@ -608,6 +608,8 @@ if config["foresight"] == "myopic":
     use rule add_brownfield as add_brownfield_pathway with:
         wildcard_constraints:
             pathway=PATHWAY_O,
+        message:
+            "Adding brownfield constraints for pathway {wildcards.pathway} ({wildcards.run})"
         input:
             unpack(input_profile_tech_brownfield),
             network=resources("networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"),
@@ -622,6 +624,8 @@ if config["foresight"] == "myopic":
     use rule solve_sector_network_myopic as solve_sector_network_myopic_pathway with:
         wildcard_constraints:
             pathway=PATHWAY_O,
+        message:
+            "Solving sector-coupled network with myopic foresight for pathway {wildcards.pathway} ({wildcards.run})"
         input:
             network=resources("networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{pathway}_brownfield.nc"),
         output:
