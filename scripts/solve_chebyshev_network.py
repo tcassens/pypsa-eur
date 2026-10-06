@@ -159,7 +159,6 @@ if __name__ == "__main__":
             m,
             m.snapshots,
             config=snakemake.config,
-            custom_extra_functionality=snakemake.params.custom_extra_functionality,
             planning_horizons=planning_horizons,
         )  # CO2 budget etc., same as MGA
         add_centre_constraints(m, dimensions, centre)

@@ -125,7 +125,6 @@ if __name__ == "__main__":
             extra_functionality=partial(
                 apply_extra_functionality,
                 config=snakemake.config,
-                custom_extra_functionality=snakemake.params.custom_extra_functionality,
                 planning_horizons=planning_horizons,
             ),
             snapshots=None,

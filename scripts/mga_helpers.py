@@ -63,15 +63,17 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     )
 
 
-def apply_extra_functionality(n, snapshots, config, custom_extra_functionality, planning_horizons):
+def apply_extra_functionality(n, snapshots, config, planning_horizons):
     """
     Run PyPSA-Eur's real extra_functionality() (CO2 budget, battery/TES ratios,
     solar potential, etc.) for one MGA direction.
 
-    Used as the `extra_functionality` callback for
-    `n.optimize.optimize_mga_in_multiple_directions`. Each direction is solved
-    in a freshly reloaded Network in a spawned worker process, so `n.config`/
-    `n.params`are never set there; this attaches them first.
+    Used as the `extra_functionality` keyword of
+    `n.optimize.optimize_mga_in_multiple_directions` (forwarded to
+    `solve_model`) and called directly in solve_chebyshev_network.py.
+    MGA directions are solved in a freshly reloaded Network in a spawned
+    worker process, so `n.config`/`n.params` are not set there; this
+    attaches them first.
 
     Parameters
     ----------
@@ -79,17 +81,27 @@ def apply_extra_functionality(n, snapshots, config, custom_extra_functionality, 
         The (per-worker) network being solved for this direction.
     snapshots : pd.DatetimeIndex
     config : dict
-        Full snakemake.config, as passed to solve_second_network.solve_network.
-    custom_extra_functionality : str | list
-        snakemake.params.custom_extra_functionality (a path, or [] if unset).
+        Full snakemake.config, attached as n.config as in solve_network.py.
     planning_horizons : str | None
     """
     from types import SimpleNamespace
 
-    from solve_second_network import extra_functionality
+    from solve_network import extra_functionality
+
+    # MGA and Chebyshev solves cannot use custom_extra_functionality yet, so it is
+    # always off here. solve_network calls it with its global `snakemake`, which
+    # Snakemake injects only into the script it runs: it exists when solve_network.py
+    # is that script, not when it is imported (MGA batches, solve_chebyshev_network).
+    # TODO: Fix: add a `snakemake` argument to extra_functionality and pass it through.
+    custom = config["solving"]["options"].get("custom_extra_functionality")
+    if custom:  # cost-opt solves would include it, MGA/Chebyshev would not
+        raise NotImplementedError(
+            f"custom_extra_functionality ({custom}) is not supported in MGA and "
+            "Chebyshev solves; unset solving.options.custom_extra_functionality"
+        )
 
     n.config = config
-    n.params = SimpleNamespace(custom_extra_functionality=custom_extra_functionality)
+    n.params = SimpleNamespace(custom_extra_functionality=[])
     extra_functionality(n, snapshots, planning_horizons=planning_horizons)
 
 
