@@ -30,7 +30,7 @@ from _helpers import (
     update_config_from_wildcards,
 )
 from compute_near_opt import fill_dimension_weights, load_dimensions_from_config
-from mga_helpers import apply_mga_extra_functionality, total_cost
+from mga_helpers import apply_extra_functionality, total_cost
 from solve_second_network import fix_networks
 
 logger = logging.getLogger(__name__)
@@ -155,7 +155,7 @@ if __name__ == "__main__":
         interval=solving.get("mem_logging_frequency", 30),
     ) as mem:
         m.optimize.create_model(multi_investment_periods=False)  # same as MGA
-        apply_mga_extra_functionality(
+        apply_extra_functionality(
             m,
             m.snapshots,
             config=snakemake.config,

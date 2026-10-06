@@ -30,7 +30,7 @@ from compute_near_opt import (
     fill_dimension_weights,
     load_dimensions_from_config,
 )
-from mga_helpers import apply_mga_extra_functionality, export_mga_capacities, export_mga_information
+from mga_helpers import apply_extra_functionality, export_mga_capacities, export_mga_information
 from solve_second_network import fix_networks
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             cache_dir=cache_dir,
             mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config),
             extra_functionality=partial(
-                apply_mga_extra_functionality,
+                apply_extra_functionality,
                 config=snakemake.config,
                 custom_extra_functionality=snakemake.params.custom_extra_functionality,
                 planning_horizons=planning_horizons,

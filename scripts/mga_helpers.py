@@ -63,7 +63,7 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     )
 
 
-def apply_mga_extra_functionality(n, snapshots, config, custom_extra_functionality, planning_horizons):
+def apply_extra_functionality(n, snapshots, config, custom_extra_functionality, planning_horizons):
     """
     Run PyPSA-Eur's real extra_functionality() (CO2 budget, battery/TES ratios,
     solar potential, etc.) for one MGA direction.
