@@ -594,6 +594,7 @@ rule solve_chebyshev_network:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+    retries: 1
     shadow:
         shadow_config
     conda:

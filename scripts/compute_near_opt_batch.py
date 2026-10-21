@@ -108,12 +108,16 @@ if __name__ == "__main__":
     # Get solver configuration
     solver_config = snakemake.config.get("solving", {})
     solver_name = solver_config.get("solver", {}).get("name", "gurobi")
-    solver_options = solver_config.get("solver_options", {}).get(
-        solver_config.get("solver", {}).get("options", "default"), {}
-    )
+    options_key = solver_config.get("solver", {}).get("options", "default")
+    # On Snakemake retries (failure or SLURM timeout) switch to the retry solver profile
+    if snakemake.attempt > 1:
+        options_key = solver_config.get("solver", {}).get("retry_options", options_key)
+    solver_options = solver_config.get("solver_options", {}).get(options_key, {})
     cache_dir = mga_config.get("cache_dir", None)
 
-    logger.info(f"Using solver: {solver_name}, cache_dir: {cache_dir}")
+    logger.info(
+        f"Using solver: {solver_name} ({options_key}, attempt {snakemake.attempt}), cache_dir: {cache_dir}"
+    )
 
     # Run near-opt optimisation for this batch
     successful_directions, successful_coordinates = (
