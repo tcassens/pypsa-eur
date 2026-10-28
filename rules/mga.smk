@@ -270,6 +270,7 @@ rule compute_near_opt_batch:
     resources:
         mem_mb=memory,
         runtime=config_provider("solving", "runtime", default="12h"),
+        attempt=lambda wildcards, attempt: attempt,  # read by the script for solver.retry_options
     retries: 1
     shadow:
         shadow_config
@@ -594,6 +595,7 @@ rule solve_chebyshev_network:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+        attempt=lambda wildcards, attempt: attempt,  # read by the script for solver.retry_options
     retries: 1
     shadow:
         shadow_config

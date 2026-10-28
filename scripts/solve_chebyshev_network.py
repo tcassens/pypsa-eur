@@ -148,10 +148,11 @@ if __name__ == "__main__":
     solver_name = solving["solver"]["name"]
     options_key = solving["solver"]["options"]
     # On Snakemake retries (failure or SLURM timeout) switch to the retry solver profile
-    if snakemake.attempt > 1:
+    attempt = snakemake.resources.attempt
+    if attempt > 1:
         options_key = solving["solver"].get("retry_options", options_key)
     solver_options = solving["solver_options"].get(options_key, {})
-    logger.info(f"Solver options: {options_key} (attempt {snakemake.attempt})")
+    logger.info(f"Solver options: {options_key} (attempt {attempt})")
     if solver_name == "gurobi":
         logging.getLogger("gurobipy").setLevel(logging.CRITICAL)
 
