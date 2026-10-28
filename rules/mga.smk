@@ -313,7 +313,7 @@ checkpoint aggregate_near_opt:
 
         logger.info(f"Aggregating {len(input.batch_results)} batches")
 
-        all_points = [pd.read_csv(f) for f in input.batch_results]
+        all_points = [pd.read_csv(f, dtype={"dir_hash": str}) for f in input.batch_results]
         combined = pd.concat(all_points, ignore_index=True)
         logger.info(f"Total solutions: {len(combined)}")
 

@@ -37,7 +37,7 @@ def load_mga_points(near_opt_csv):
     (index ``dir_hash``), one column per dimension.
     """
     return (
-        pd.read_csv(near_opt_csv, index_col="dir_hash")
+        pd.read_csv(near_opt_csv, index_col="dir_hash", dtype={"dir_hash": str})
         .filter(regex="^coord_")
         .rename(columns=lambda c: c.removeprefix("coord_"))
     )
